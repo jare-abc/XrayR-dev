@@ -1,4 +1,4 @@
-package adminapi 
+package adminapi
 
 import (
 	"bufio"
@@ -18,7 +18,7 @@ import (
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/infra/conf"
 
-	"github.com/XrayR-project/XrayR/api/adminapi"
+	"github.com/jare-abc/XrayR-dev/api/adminapi"
 )
 
 // APIClient create an api client to the panel.
@@ -77,7 +77,7 @@ func New(apiConfig *api.Config) *APIClient {
 	return apiClient
 }
 
-//START GetNodeInfo----------------------------------------------------------------------------------------------------------------
+// START GetNodeInfo----------------------------------------------------------------------------------------------------------------
 func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 	server := new(serverConfig)
 	path := "/api/node/nodesetting"
@@ -120,12 +120,12 @@ func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *json.RawMessage) (*api
 	if err := json.Unmarshal(*nodeInfoResponse, shadowsocksNodeInfo); err != nil {
 		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(*nodeInfoResponse), err)
 	}
-	
+
 	if c.DeviceLimit == 0 && shadowsocksNodeInfo.ClientLimit > 0 {
 		c.DeviceLimit = shadowsocksNodeInfo.ClientLimit
 	}
 
-	c.NodeID=shadowsocksNodeInfo.NodeID
+	c.NodeID = shadowsocksNodeInfo.NodeID
 
 	nodeInfo := &api.NodeInfo{
 		NodeType:          c.NodeType,
@@ -205,10 +205,10 @@ func (c *APIClient) ParseTrojanNodeResponse(nodeInfoResponse *json.RawMessage) (
 
 	return nodeInfo, nil
 }
+
 //END GetNodeInfo----------------------------------------------------------------------------------------------------------------
 
-
-//START GetUserList----------------------------------------------------------------------------------------------------------------
+// START GetUserList----------------------------------------------------------------------------------------------------------------
 func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 	path := "/api/node/usenodeuser"
 	var nodeType = ""
@@ -222,7 +222,7 @@ func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 	default:
 		return nil, fmt.Errorf("NodeType Error: %s", c.NodeType)
 	}
-	res, err := c.client.R(). 
+	res, err := c.client.R().
 		SetResult(&Response{}).
 		ForceContentType("application/json").
 		Get(path)
@@ -257,7 +257,7 @@ func (c *APIClient) ParseUserListResponse(userInfoResponse *[]UserResponse) (*[]
 
 		if c.SpeedLimit > 0 {
 			speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
-		} else if  user.SpeedLimit > 0 {
+		} else if user.SpeedLimit > 0 {
 			speedLimit = uint64((user.SpeedLimit * 1000000) / 8)
 		}
 		userList[i] = api.UserInfo{
@@ -271,15 +271,15 @@ func (c *APIClient) ParseUserListResponse(userInfoResponse *[]UserResponse) (*[]
 
 	return &userList, nil
 }
+
 //END GetUserList----------------------------------------------------------------------------------------------------------------
 
-
-//START GetNodeRule----------------------------------------------------------------------------------------------------------------
+// START GetNodeRule----------------------------------------------------------------------------------------------------------------
 func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
 	ruleList := c.LocalRuleList
 	path := "/api/node/noderules"
 	res, err := c.client.R().
-		SetResult(&Response{}). 
+		SetResult(&Response{}).
 		ForceContentType("application/json").
 		Get(path)
 
@@ -311,10 +311,10 @@ func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
 
 	return &ruleList, nil
 }
+
 //END GetNodeRule----------------------------------------------------------------------------------------------------------------
 
-
-//START ReportNodeStatus--------------------------------------------------------------------------------------------------------------
+// START ReportNodeStatus--------------------------------------------------------------------------------------------------------------
 func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
 	path := "/api/node/checkonline"
 	var nodeType = ""
@@ -327,7 +327,7 @@ func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
 		nodeType = "trojan"
 	default:
 		return nil, fmt.Errorf("NodeType Error: %s", c.NodeType)
-	} 
+	}
 
 	systemload := NodeStatus{
 		Uptime: int(nodeStatus.Uptime),
@@ -349,27 +349,27 @@ func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
 
 	return nil
 }
+
 //END ReportNodeStatus----------------------------------------------------------------------------------------------------------------
 
-
-
-//START ReportNodeOnlineUsers--------------------------------------------------------------------------------------------------------------
+// START ReportNodeOnlineUsers--------------------------------------------------------------------------------------------------------------
 func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) error {
 	return nil
 }
+
 //END ReportNodeOnlineUsers----------------------------------------------------------------------------------------------------------------
 
-//START ReportNodeOnlineUsers--------------------------------------------------------------------------------------------------------------
+// START ReportNodeOnlineUsers--------------------------------------------------------------------------------------------------------------
 func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 
 	data := make([]UserTraffic, len(*userTraffic))
 	for i, traffic := range *userTraffic {
 		data[i] = UserTraffic{
-			UserId:      traffic.UID,
+			UserId:   traffic.UID,
 			Upload:   traffic.Upload,
 			Download: traffic.Download}
 	}
-	postData := &PostData{data: data,nodeid:strconv.Itoa(c.NodeID)}
+	postData := &PostData{data: data, nodeid: strconv.Itoa(c.NodeID)}
 	path := "/api/node/usedtraffic"
 	res, err := c.client.R().
 		SetBody(postData).
@@ -383,16 +383,17 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 
 	return nil
 }
+
 //END ReportNodeOnlineUsers----------------------------------------------------------------------------------------------------------------
 
-//START Describe--------------------------------------------------------------------------------------------------------------
+// START Describe--------------------------------------------------------------------------------------------------------------
 func (c *APIClient) Describe() api.ClientInfo {
 	return api.ClientInfo{APIHost: c.APIHost, NodeID: c.NodeID, Key: c.Key, NodeType: c.NodeType}
 }
+
 //END Describe----------------------------------------------------------------------------------------------------------------
 
-
-//START GetNodeRule--------------------------------------------------------------------------------------------------------------
+// START GetNodeRule--------------------------------------------------------------------------------------------------------------
 func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
 	path := "/api/node/rules"
 	var nodeType = ""
@@ -440,16 +441,16 @@ func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
 
 	return &ruleList, nil
 }
+
 //END GetNodeRule----------------------------------------------------------------------------------------------------------------
 
-
-//START ReportIllegal--------------------------------------------------------------------------------------------------------------
+// START ReportIllegal--------------------------------------------------------------------------------------------------------------
 func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
 
 	data := make([]IllegalItem, len(*detectResultList))
 	for i, r := range *detectResultList {
 		data[i] = IllegalItem{
-			ID:  r.RuleID,
+			ID:     r.RuleID,
 			UserId: r.UID,
 		}
 	}
@@ -466,6 +467,7 @@ func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
 	}
 	return nil
 }
+
 //END ReportIllegal----------------------------------------------------------------------------------------------------------------
 
 func (c *APIClient) Debug() {
