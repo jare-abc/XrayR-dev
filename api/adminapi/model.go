@@ -1,4 +1,4 @@
-package proxypanel
+package adminapi
 
 import "encoding/json"
 
