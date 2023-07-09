@@ -15,7 +15,7 @@ import (
 	"github.com/xtls/xray-core/proxy/trojan"
 	"github.com/xtls/xray-core/proxy/vless"
 
-	"github.com/XrayR-project/XrayR/api"
+	"github.com/jare-abc/XrayR-dev/api"
 )
 
 var AEADMethod = map[shadowsocks.CipherType]uint8{

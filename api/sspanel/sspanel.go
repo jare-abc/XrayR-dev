@@ -16,7 +16,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"github.com/XrayR-project/XrayR/api"
+	"github.com/jare-abc/XrayR-dev/api"
 )
 
 var (
@@ -41,7 +41,7 @@ type APIClient struct {
 	LastReportOnline    map[int]int
 	access              sync.Mutex
 	version             string
-	eTag		    map[string]string
+	eTag                map[string]string
 }
 
 // New creat a api instance
@@ -82,7 +82,7 @@ func New(apiConfig *api.Config) *APIClient {
 		LocalRuleList:       localRuleList,
 		DisableCustomConfig: apiConfig.DisableCustomConfig,
 		LastReportOnline:    make(map[int]int),
-		eTag:		     make(map[string]string),
+		eTag:                make(map[string]string),
 	}
 }
 
