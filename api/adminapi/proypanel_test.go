@@ -1,4 +1,4 @@
-package proxypanel_test
+package adminapi_test
 
 import (
 	"fmt"
