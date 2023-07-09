@@ -149,7 +149,7 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 	case "Trojan":
 		path = fmt.Sprintf("/api/trojan/v1/node/%d", c.NodeID)
 	case "Shadowsocks":
-		path = fmt.Sprintf("/api/ss/v1/node/%d", c.NodeID)
+		path = fmt.Sprintf("/api/node/nodesetting/%d", c.NodeID)
 	default:
 		return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
 	}

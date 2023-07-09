@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/jare-abc/XrayR-dev/api"
-	"github.com/jare-abc/XrayR-dev/api/proxypanel"
+	"github.com/jare-abc/XrayR-dev/api/adminapi"
 )
 
 func CreateClient() api.API {
@@ -15,7 +15,7 @@ func CreateClient() api.API {
 		NodeID:   1,
 		NodeType: "V2ray",
 	}
-	client := proxypanel.New(apiConfig)
+	client := adminapi.New(apiConfig)
 	return client
 }
 
@@ -26,7 +26,7 @@ func TestGetV2rayNodeinfo(t *testing.T) {
 		NodeID:   1,
 		NodeType: "V2ray",
 	}
-	client := proxypanel.New(apiConfig)
+	client := adminapi.New(apiConfig)
 
 	nodeInfo, err := client.GetNodeInfo()
 	if err != nil {
@@ -37,12 +37,12 @@ func TestGetV2rayNodeinfo(t *testing.T) {
 
 func TestGetSSNodeinfo(t *testing.T) {
 	apiConfig := &api.Config{
-		APIHost:  "http://127.0.0.1:8888",
+		APIHost:  "http://127.0.0.1:5005",
 		Key:      "8VtrYVGFHL0Q9azc",
 		NodeID:   3,
 		NodeType: "Shadowsocks",
 	}
-	client := proxypanel.New(apiConfig)
+	client := adminapi.New(apiConfig)
 	nodeInfo, err := client.GetNodeInfo()
 	if err != nil {
 		t.Error(err)
@@ -57,7 +57,7 @@ func TestGetTrojanNodeinfo(t *testing.T) {
 		NodeID:   2,
 		NodeType: "Trojan",
 	}
-	client := proxypanel.New(apiConfig)
+	client := adminapi.New(apiConfig)
 	nodeInfo, err := client.GetNodeInfo()
 	if err != nil {
 		t.Error(err)
