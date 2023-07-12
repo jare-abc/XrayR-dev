@@ -117,7 +117,7 @@ func (c *APIClient) assembleURL(path string) string {
 func (c *APIClient) createCommonRequest() *resty.Request {
 	request := c.client.R().EnableTrace()
 	request.EnableTrace()
-	request.SetHeader("key", c.Key)
+	request.SetHeader("apitoken", c.Key)
 	request.SetHeader("timestamp", strconv.FormatInt(time.Now().Unix(), 10))
 	return request
 }
@@ -142,17 +142,8 @@ func (c *APIClient) parseResponse(res *resty.Response, path string, err error) (
 
 // GetNodeInfo will pull NodeInfo Config from sspanel
 func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
-	var path string
-	switch c.NodeType {
-	case "V2ray":
-		path = fmt.Sprintf("/api/v2ray/v1/node/%d", c.NodeID)
-	case "Trojan":
-		path = fmt.Sprintf("/api/trojan/v1/node/%d", c.NodeID)
-	case "Shadowsocks":
-		path = fmt.Sprintf("/api/node/nodesetting/%d", c.NodeID)
-	default:
-		return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
-	}
+
+	path := "/api/node/nodesetting"
 
 	res, err := c.createCommonRequest().
 		SetResult(&Response{}).
@@ -183,19 +174,12 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 	return nodeInfo, nil
 }
 
+//---------------------------------------------------------------------------------------
+
 // GetUserList will pull user form sspanel
 func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
-	var path string
-	switch c.NodeType {
-	case "V2ray":
-		path = fmt.Sprintf("/api/v2ray/v1/userList/%d", c.NodeID)
-	case "Trojan":
-		path = fmt.Sprintf("/api/trojan/v1/userList/%d", c.NodeID)
-	case "Shadowsocks":
-		path = fmt.Sprintf("/api/ss/v1/userList/%d", c.NodeID)
-	default:
-		return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
-	}
+
+	path := "/api/node/usenodeuser"
 
 	res, err := c.createCommonRequest().
 		SetResult(&Response{}).
@@ -203,10 +187,13 @@ func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 		Get(path)
 
 	response, err := c.parseResponse(res, path, err)
+
 	if err != nil {
 		return nil, err
 	}
+
 	userList := new([]api.UserInfo)
+
 	switch c.NodeType {
 	case "V2ray":
 		userList, err = c.ParseV2rayUserListResponse(&response.Data)
@@ -217,26 +204,19 @@ func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 	default:
 		return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
 	}
+
 	if err != nil {
 		res, _ := json.Marshal(response.Data)
 		return nil, fmt.Errorf("parse user list failed: %s", string(res))
 	}
+
 	return userList, nil
 }
 
+// ----------------------------------------------------------------------------------------
 // ReportNodeStatus reports the node status to the sspanel
 func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
-	var path string
-	switch c.NodeType {
-	case "V2ray":
-		path = fmt.Sprintf("/api/v2ray/v1/nodeStatus/%d", c.NodeID)
-	case "Trojan":
-		path = fmt.Sprintf("/api/trojan/v1/nodeStatus/%d", c.NodeID)
-	case "Shadowsocks":
-		path = fmt.Sprintf("/api/ss/v1/nodeStatus/%d", c.NodeID)
-	default:
-		return fmt.Errorf("unsupported Node type: %s", c.NodeType)
-	}
+	path := "/api/node/checkonline/"
 
 	systemload := NodeStatus{
 		Uptime: int(nodeStatus.Uptime),
@@ -259,20 +239,12 @@ func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
 	return nil
 }
 
+// ---------------------------------------------------------------------------------------
+
 // ReportNodeOnlineUsers reports online user ip
 func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) error {
 
-	var path string
-	switch c.NodeType {
-	case "V2ray":
-		path = fmt.Sprintf("/api/v2ray/v1/nodeOnline/%d", c.NodeID)
-	case "Trojan":
-		path = fmt.Sprintf("/api/trojan/v1/nodeOnline/%d", c.NodeID)
-	case "Shadowsocks":
-		path = fmt.Sprintf("/api/ss/v1/nodeOnline/%d", c.NodeID)
-	default:
-		return fmt.Errorf("unsupported Node type: %s", c.NodeType)
-	}
+	path := "/api/node/nodeonline/"
 
 	data := make([]NodeOnline, len(*onlineUserList))
 	for i, user := range *onlineUserList {
@@ -295,27 +267,17 @@ func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) erro
 
 // ReportUserTraffic reports the user traffic
 func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
-	var path string
-	switch c.NodeType {
-	case "V2ray":
-		path = fmt.Sprintf("/api/v2ray/v1/userTraffic/%d", c.NodeID)
-	case "Trojan":
-		path = fmt.Sprintf("/api/trojan/v1/userTraffic/%d", c.NodeID)
-	case "Shadowsocks":
-		path = fmt.Sprintf("/api/ss/v1/userTraffic/%d", c.NodeID)
-	default:
-		return fmt.Errorf("unsupported Node type: %s", c.NodeType)
-	}
+	path := "/api/node/usedtraffic"
 
-	data := make([]UserTraffic, len(*userTraffic))
+	data := make([]UsedData, len(*userTraffic))
 	for i, traffic := range *userTraffic {
-		data[i] = UserTraffic{
-			UID:      traffic.UID,
+		data[i] = UsedData{
+			UserId:   traffic.UID,
 			Upload:   traffic.Upload,
 			Download: traffic.Download}
 	}
 	res, err := c.createCommonRequest().
-		SetBody(data).
+		SetBody(&UseUserTraffic{c.NodeID, data}).
 		SetResult(&Response{}).
 		ForceContentType("application/json").
 		Post(path)
@@ -330,17 +292,7 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 
 // GetNodeRule will pull the audit rule form sspanel
 func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
-	var path string
-	switch c.NodeType {
-	case "V2ray":
-		path = fmt.Sprintf("/api/v2ray/v1/nodeRule/%d", c.NodeID)
-	case "Trojan":
-		path = fmt.Sprintf("/api/trojan/v1/nodeRule/%d", c.NodeID)
-	case "Shadowsocks":
-		path = fmt.Sprintf("/api/ss/v1/nodeRule/%d", c.NodeID)
-	default:
-		return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
-	}
+	path := "/api/node/noderules/"
 
 	res, err := c.createCommonRequest().
 		SetResult(&Response{}).
@@ -455,23 +407,25 @@ func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *json.RawMessage) (*api
 	if err := json.Unmarshal(*nodeInfoResponse, shadowsocksNodeInfo); err != nil {
 		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(*nodeInfoResponse), err)
 	}
-	if c.SpeedLimit > 0 {
-		speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
-	} else {
+
+	if shadowsocksNodeInfo.SpeedLimit > 0 {
 		speedLimit = uint64((shadowsocksNodeInfo.SpeedLimit * 1000000) / 8)
 	}
 
-	if c.DeviceLimit == 0 && shadowsocksNodeInfo.ClientLimit > 0 {
+	if shadowsocksNodeInfo.ClientLimit > 0 {
 		c.DeviceLimit = shadowsocksNodeInfo.ClientLimit
 	}
+
+	c.NodeID = shadowsocksNodeInfo.ID
+
 	// Create GeneralNodeInfo
 	nodeInfo := &api.NodeInfo{
 		NodeType:          c.NodeType,
-		NodeID:            c.NodeID,
+		NodeID:            shadowsocksNodeInfo.ID,
 		Port:              shadowsocksNodeInfo.Port,
 		SpeedLimit:        speedLimit,
 		TransportProtocol: "tcp",
-		CypherMethod:      shadowsocksNodeInfo.Method,
+		CypherMethod:      shadowsocksNodeInfo.Setting.Method,
 	}
 
 	return nodeInfo, nil

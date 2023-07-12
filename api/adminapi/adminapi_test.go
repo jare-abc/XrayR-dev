@@ -10,10 +10,10 @@ import (
 
 func CreateClient() api.API {
 	apiConfig := &api.Config{
-		APIHost:  "http://127.0.0.1:8888",
-		Key:      "naBDpLvREiwY9qPr",
+		APIHost:  "http://127.0.0.1:5005",
+		Key:      "123456789",
 		NodeID:   1,
-		NodeType: "V2ray",
+		NodeType: "Shadowsocks",
 	}
 	client := adminapi.New(apiConfig)
 	return client
@@ -38,7 +38,7 @@ func TestGetV2rayNodeinfo(t *testing.T) {
 func TestGetSSNodeinfo(t *testing.T) {
 	apiConfig := &api.Config{
 		APIHost:  "http://127.0.0.1:5005",
-		Key:      "8VtrYVGFHL0Q9azc",
+		Key:      "123456789",
 		NodeID:   3,
 		NodeType: "Shadowsocks",
 	}
@@ -103,7 +103,7 @@ func TestReportReportNodeOnlineUsers(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-
+	client.Debug()
 	onlineUserList := make([]api.OnlineUser, len(*userList))
 	for i, userInfo := range *userList {
 		onlineUserList[i] = api.OnlineUser{
@@ -128,8 +128,8 @@ func TestReportReportUserTraffic(t *testing.T) {
 	for i, userInfo := range *userList {
 		generalUserTraffic[i] = api.UserTraffic{
 			UID:      userInfo.UID,
-			Upload:   114514,
-			Download: 114514,
+			Upload:   100,
+			Download: 100,
 		}
 	}
 	client.Debug()

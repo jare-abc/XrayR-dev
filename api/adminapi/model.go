@@ -3,9 +3,9 @@ package adminapi
 import "encoding/json"
 
 type Response struct {
-	Status  string          `json:"status"`
+	Status  string          `json:"type"`
 	Code    int             `json:"code"`
-	Data    json.RawMessage `json:"data"`
+	Data    json.RawMessage `json:"result"`
 	Message string          `json:"message"`
 }
 
@@ -34,10 +34,12 @@ type V2rayNodeInfo struct {
 
 type ShadowsocksNodeInfo struct {
 	ID          int    `json:"id"`
-	SpeedLimit  uint64 `json:"speed_limit"`
-	ClientLimit int    `json:"client_limit"`
-	Method      string `json:"method"`
+	SpeedLimit  uint64 `json:"speedlimit"`
+	ClientLimit int    `json:"clientlimit"`
 	Port        uint32 `json:"port"`
+	Setting     struct {
+		Method string `json:"method"`
+	} `json:"setting"`
 }
 
 type TrojanNodeInfo struct {
@@ -59,8 +61,19 @@ type NodeStatus struct {
 }
 
 type NodeOnline struct {
-	UID int    `json:"uid"`
+	UID int    `json:"UserNo"`
 	IP  string `json:"ip"`
+}
+
+type UseUserTraffic struct {
+	NodeId int        `json:"nodeid"`
+	Data   []UsedData `json:"data"`
+}
+
+type UsedData struct {
+	Upload   int64 `json:"upload"`
+	Download int64 `json:"download"`
+	UserId   int   `json:"userid"`
 }
 
 type VMessUser struct {
@@ -76,9 +89,9 @@ type TrojanUser struct {
 }
 
 type SSUser struct {
-	UID        int    `json:"uid"`
-	Password   string `json:"passwd"`
-	SpeedLimit uint64 `json:"speed_limit"`
+	UID        int    `json:"id"`
+	Password   string `json:"password"`
+	SpeedLimit uint64 `json:"nodespeedlimit"`
 }
 
 type UserTraffic struct {
