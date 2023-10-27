@@ -1,37 +1,57 @@
 package adminapi
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
-type ShadowsocksNodeInfo struct {
-	ID          int    `json:"id"`
-	SpeedLimit  uint64 `json:"speedlimit"`
-	ClientLimit int    `json:"clientlimit"`
-	Port        uint32 `json:"port"`
-	Setting     struct {
-		Method string `json:"method"`
-	} `json:"setting"`
+type serverConfig struct {
+	shadowsocks
+	v2ray
+	trojan
+
+	ServerPort int `json:"server_port"`
+	BaseConfig struct {
+		PushInterval int `json:"push_interval"`
+		PullInterval int `json:"pull_interval"`
+	} `json:"base_config"`
+	Routes []route `json:"routes"`
 }
 
-type UserResponse struct {
-	ID          int     `json:"id"`
-	Passwd      string  `json:"password"`
-	SpeedLimit  float64 `json:"nodespeedlimit"`
-	DeviceLimit int     `json:"nodeconnector"`
+type shadowsocks struct {
+	Cipher       string `json:"cipher"`
+	Obfs         string `json:"obfs"`
+	ObfsSettings struct {
+		Path string `json:"path"`
+		Host string `json:"host"`
+	} `json:"obfs_settings"`
+	ServerKey string `json:"server_key"`
 }
 
-type UserTraffic struct {
-	UserId   int   `json:"userid"`
-	Upload   int64 `json:"upload"`
-	Download int64 `json:"download"`
+type v2ray struct {
+	Network         string `json:"network"`
+	NetworkSettings struct {
+		Path        string           `json:"path"`
+		Headers     *json.RawMessage `json:"headers"`
+		ServiceName string           `json:"serviceName"`
+		Header      *json.RawMessage `json:"header"`
+	} `json:"networkSettings"`
+	Tls int `json:"tls"`
 }
 
-type NodeRule struct {
-	Mode  string         `json:"mode"`
-	Rules []NodeRuleItem `json:"rules"`
+type trojan struct {
+	Host       string `json:"host"`
+	ServerName string `json:"server_name"`
 }
 
-type NodeRuleItem struct {
-	ID      int    `json:"id"`
-	Type    string `json:"type"`
-	Pattern string `json:"pattern"`
+type route struct {
+	Id          int      `json:"id"`
+	Match       []string `json:"match"`
+	Action      string   `json:"action"`
+	ActionValue string   `json:"action_value"`
+}
+
+type user struct {
+	Id         int    `json:"id"`
+	Uuid       string `json:"uuid"`
+	SpeedLimit int    `json:"speed_limit"`
 }

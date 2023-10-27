@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/XrayR-project/XrayR/api/adminapi"
 	"github.com/XrayR-project/XrayR/api/gov2panel"
 	"github.com/XrayR-project/XrayR/api/newV2board"
 	"github.com/XrayR-project/XrayR/app/mydispatcher"
@@ -26,8 +27,6 @@ import (
 	_ "github.com/XrayR-project/XrayR/cmd/distro/all"
 	"github.com/XrayR-project/XrayR/service"
 	"github.com/XrayR-project/XrayR/service/controller"
-
-	"github.com/jare-abc/XrayR-dev/api/adminapi"
 )
 
 // Panel Structure
