@@ -3,24 +3,29 @@ package adminapi
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
-	"reflect"
 	"regexp"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/bitly/go-simplejson"
 	"github.com/go-resty/resty/v2"
+	"github.com/xtls/xray-core/common/net"
+	"github.com/xtls/xray-core/infra/conf"
 
-	"github.com/jare-abc/XrayR-dev/api"
+	"github.com/XrayR-project/XrayR/api/adminapi"
 )
 
-// APIClient create a api client to the panel.
+// APIClient create an api client to the panel.
 type APIClient struct {
 	client        *resty.Client
 	APIHost       string
-	NodeID        int
+	NodeID        uint64
 	Key           string
 	NodeType      string
 	EnableVless   bool
@@ -28,11 +33,12 @@ type APIClient struct {
 	SpeedLimit    float64
 	DeviceLimit   int
 	LocalRuleList []api.DetectRule
+	resp          atomic.Value
+	eTag          string
 }
 
-// New creat a api instance
+// New create an api instance
 func New(apiConfig *api.Config) *APIClient {
-
 	client := resty.New()
 	client.SetRetryCount(3)
 	if apiConfig.Timeout > 0 {
@@ -48,6 +54,12 @@ func New(apiConfig *api.Config) *APIClient {
 		}
 	})
 	client.SetBaseURL(apiConfig.APIHost)
+	// Create Key for each requests
+	client.SetQueryParams(map[string]string{
+		"node_id":   strconv.Itoa(apiConfig.NodeID),
+		"node_type": strings.ToLower(apiConfig.NodeType),
+		"token":     apiConfig.Key,
+	})
 	// Read local rule list
 	localRuleList := readLocalRuleList(apiConfig.RuleListPath)
 	apiClient := &APIClient{
@@ -65,304 +77,68 @@ func New(apiConfig *api.Config) *APIClient {
 	return apiClient
 }
 
-// readLocalRuleList reads the local rule list file
-func readLocalRuleList(path string) (LocalRuleList []api.DetectRule) {
-
-	LocalRuleList = make([]api.DetectRule, 0)
-	if path != "" {
-		// open the file
-		file, err := os.Open(path)
-
-		// handle errors while opening
-		if err != nil {
-			log.Printf("Error when opening file: %s", err)
-			return LocalRuleList
-		}
-
-		fileScanner := bufio.NewScanner(file)
-
-		// read line by line
-		for fileScanner.Scan() {
-			LocalRuleList = append(LocalRuleList, api.DetectRule{
-				ID:      -1,
-				Pattern: regexp.MustCompile(fileScanner.Text()),
-			})
-		}
-		// handle first encountered error while reading
-		if err := fileScanner.Err(); err != nil {
-			log.Fatalf("Error while reading file: %s", err)
-			return
-		}
-
-		file.Close()
-	}
-
-	return LocalRuleList
-}
-
-// Describe return a description of the client
-func (c *APIClient) Describe() api.ClientInfo {
-	return api.ClientInfo{APIHost: c.APIHost, NodeID: c.NodeID, Key: c.Key, NodeType: c.NodeType}
-}
-
-// Debug set the client debug for client
-func (c *APIClient) Debug() {
-	c.client.SetDebug(true)
-}
-
-func (c *APIClient) assembleURL(path string) string {
-	return c.APIHost + path
-}
-
-func (c *APIClient) createCommonRequest() *resty.Request {
-	request := c.client.R().EnableTrace()
-	request.EnableTrace()
-	request.SetHeader("apitoken", c.Key)
-	request.SetHeader("timestamp", strconv.FormatInt(time.Now().Unix(), 10))
-	return request
-}
-
-func (c *APIClient) parseResponse(res *resty.Response, path string, err error) (*Response, error) {
-	if err != nil {
-		return nil, fmt.Errorf("request %s failed: %s", c.assembleURL(path), err)
-	}
-
-	if res.StatusCode() > 400 {
-		body := res.Body()
-		return nil, fmt.Errorf("request %s failed: %s, %s", c.assembleURL(path), string(body), err)
-	}
-	response := res.Result().(*Response)
-
-	if response.Status != "success" {
-		res, _ := json.Marshal(&response)
-		return nil, fmt.Errorf("ret %s invalid", string(res))
-	}
-	return response, nil
-}
-
-// GetNodeInfo will pull NodeInfo Config from sspanel
+// START GetNodeInfo----------------------------------------------------------------------------------------------------------------
 func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
-
+	server := new(serverConfig)
 	path := "/api/node/nodesetting"
 
-	res, err := c.createCommonRequest().
-		SetResult(&Response{}).
+	res, err := c.client.R().
+		SetHeader("token", c.Key).
 		ForceContentType("application/json").
 		Get(path)
 
-	response, err := c.parseResponse(res, path, err)
+	nodeInfoResp, err := c.parseResponse(res, path, err)
 	if err != nil {
 		return nil, err
 	}
+	b, _ := nodeInfoResp.Encode()
+	json.Unmarshal(b, server)
+
+	if server.ServerPort == 0 {
+		return nil, errors.New("server port must > 0")
+	}
+
+	c.resp.Store(server)
 
 	switch c.NodeType {
-	case "V2ray":
-		nodeInfo, err = c.ParseV2rayNodeResponse(&response.Data)
-	case "Trojan":
-		nodeInfo, err = c.ParseTrojanNodeResponse(&response.Data)
 	case "Shadowsocks":
-		nodeInfo, err = c.ParseSSNodeResponse(&response.Data)
+		nodeInfo, err = c.parseSSNodeResponse(server)
 	default:
-		return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
+		return nil, fmt.Errorf("unsupported node type: %s", c.NodeType)
 	}
 
 	if err != nil {
-		res, _ := json.Marshal(response.Data)
-		return nil, fmt.Errorf("Parse node info failed: %s, \nError: %s", string(res), err)
+		return nil, fmt.Errorf("parse node info failed: %s, \nError: %v", res.String(), err)
 	}
 
 	return nodeInfo, nil
 }
 
-//---------------------------------------------------------------------------------------
-
-// GetUserList will pull user form sspanel
-func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
-
-	path := "/api/node/usenodeuser"
-
-	res, err := c.createCommonRequest().
-		SetResult(&Response{}).
-		ForceContentType("application/json").
-		Get(path)
-
-	response, err := c.parseResponse(res, path, err)
-
-	if err != nil {
-		return nil, err
+func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *json.RawMessage) (*api.NodeInfo, error) {
+	var speedLimit uint64 = 0
+	shadowsocksNodeInfo := new(ShadowsocksNodeInfo)
+	if err := json.Unmarshal(*nodeInfoResponse, shadowsocksNodeInfo); err != nil {
+		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(*nodeInfoResponse), err)
 	}
 
-	userList := new([]api.UserInfo)
-
-	switch c.NodeType {
-	case "V2ray":
-		userList, err = c.ParseV2rayUserListResponse(&response.Data)
-	case "Trojan":
-		userList, err = c.ParseTrojanUserListResponse(&response.Data)
-	case "Shadowsocks":
-		userList, err = c.ParseSSUserListResponse(&response.Data)
-	default:
-		return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
+	if c.DeviceLimit == 0 && shadowsocksNodeInfo.ClientLimit > 0 {
+		c.DeviceLimit = shadowsocksNodeInfo.ClientLimit
 	}
 
-	if err != nil {
-		res, _ := json.Marshal(response.Data)
-		return nil, fmt.Errorf("parse user list failed: %s", string(res))
+	c.NodeID = shadowsocksNodeInfo.NodeID
+
+	nodeInfo := &api.NodeInfo{
+		NodeType:          c.NodeType,
+		NodeID:            shadowsocksNodeInfo.NodeID,
+		Port:              shadowsocksNodeInfo.Port,
+		SpeedLimit:        speedLimit,
+		TransportProtocol: "tcp",
+		CypherMethod:      shadowsocksNodeInfo.Setting.Method,
 	}
 
-	return userList, nil
+	return nodeInfo, nil
 }
 
-// ----------------------------------------------------------------------------------------
-// ReportNodeStatus reports the node status to the sspanel
-func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
-	path := "/api/node/checkonline/"
-
-	systemload := NodeStatus{
-		Uptime: int(nodeStatus.Uptime),
-		CPU:    fmt.Sprintf("%d%%", int(nodeStatus.CPU)),
-		Mem:    fmt.Sprintf("%d%%", int(nodeStatus.Mem)),
-		Disk:   fmt.Sprintf("%d%%", int(nodeStatus.Disk)),
-	}
-
-	res, err := c.createCommonRequest().
-		SetBody(systemload).
-		SetResult(&Response{}).
-		ForceContentType("application/json").
-		Post(path)
-
-	_, err = c.parseResponse(res, path, err)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// ---------------------------------------------------------------------------------------
-
-// ReportNodeOnlineUsers reports online user ip
-func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) error {
-
-	path := "/api/node/nodeonline/"
-
-	data := make([]NodeOnline, len(*onlineUserList))
-	for i, user := range *onlineUserList {
-		data[i] = NodeOnline{UID: user.UID, IP: user.IP}
-	}
-
-	res, err := c.createCommonRequest().
-		SetBody(data).
-		SetResult(&Response{}).
-		ForceContentType("application/json").
-		Post(path)
-
-	_, err = c.parseResponse(res, path, err)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// ReportUserTraffic reports the user traffic
-func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
-	path := "/api/node/usedtraffic"
-
-	data := make([]UsedData, len(*userTraffic))
-	for i, traffic := range *userTraffic {
-		data[i] = UsedData{
-			UserId:   traffic.UID,
-			Upload:   traffic.Upload,
-			Download: traffic.Download}
-	}
-	res, err := c.createCommonRequest().
-		SetBody(&UseUserTraffic{c.NodeID, data}).
-		SetResult(&Response{}).
-		ForceContentType("application/json").
-		Post(path)
-
-	_, err = c.parseResponse(res, path, err)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetNodeRule will pull the audit rule form sspanel
-func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
-	path := "/api/node/noderules/"
-
-	res, err := c.createCommonRequest().
-		SetResult(&Response{}).
-		ForceContentType("application/json").
-		Get(path)
-
-	response, err := c.parseResponse(res, path, err)
-	if err != nil {
-		return nil, err
-	}
-
-	ruleListResponse := new(NodeRule)
-
-	if err := json.Unmarshal(response.Data, ruleListResponse); err != nil {
-		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(ruleListResponse), err)
-	}
-	ruleList := c.LocalRuleList
-	// Only support reject rule type
-	if ruleListResponse.Mode != "reject" {
-		return &ruleList, nil
-	} else {
-		for _, r := range ruleListResponse.Rules {
-			if r.Type == "reg" {
-				ruleList = append(ruleList, api.DetectRule{
-					ID:      r.ID,
-					Pattern: regexp.MustCompile(r.Pattern),
-				})
-			}
-
-		}
-	}
-
-	return &ruleList, nil
-}
-
-// ReportIllegal reports the user illegal behaviors
-func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
-	var path string
-	switch c.NodeType {
-	case "V2ray":
-		path = fmt.Sprintf("/api/v2ray/v1/trigger/%d", c.NodeID)
-	case "Trojan":
-		path = fmt.Sprintf("/api/trojan/v1/trigger/%d", c.NodeID)
-	case "Shadowsocks":
-		path = fmt.Sprintf("/api/ss/v1/trigger/%d", c.NodeID)
-	default:
-		return fmt.Errorf("unsupported Node type: %s", c.NodeType)
-	}
-
-	for _, r := range *detectResultList {
-		res, err := c.createCommonRequest().
-			SetBody(IllegalReport{
-				RuleID: r.RuleID,
-				UID:    r.UID,
-				Reason: "XrayR cannot save reason",
-			}).
-			SetResult(&Response{}).
-			ForceContentType("application/json").
-			Post(path)
-
-		_, err = c.parseResponse(res, path, err)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ParseV2rayNodeResponse parse the response for the given nodeinfor format
 func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *json.RawMessage) (*api.NodeInfo, error) {
 	var speedLimit uint64 = 0
 
@@ -400,38 +176,6 @@ func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *json.RawMessage) (*
 	return nodeInfo, nil
 }
 
-// ParseSSNodeResponse parse the response for the given nodeinfor format
-func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *json.RawMessage) (*api.NodeInfo, error) {
-	var speedLimit uint64 = 0
-	shadowsocksNodeInfo := new(ShadowsocksNodeInfo)
-	if err := json.Unmarshal(*nodeInfoResponse, shadowsocksNodeInfo); err != nil {
-		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(*nodeInfoResponse), err)
-	}
-
-	if shadowsocksNodeInfo.SpeedLimit > 0 {
-		speedLimit = uint64((shadowsocksNodeInfo.SpeedLimit * 1000000) / 8)
-	}
-
-	if shadowsocksNodeInfo.ClientLimit > 0 {
-		c.DeviceLimit = shadowsocksNodeInfo.ClientLimit
-	}
-
-	c.NodeID = shadowsocksNodeInfo.ID
-
-	// Create GeneralNodeInfo
-	nodeInfo := &api.NodeInfo{
-		NodeType:          c.NodeType,
-		NodeID:            shadowsocksNodeInfo.ID,
-		Port:              shadowsocksNodeInfo.Port,
-		SpeedLimit:        speedLimit,
-		TransportProtocol: "tcp",
-		CypherMethod:      shadowsocksNodeInfo.Setting.Method,
-	}
-
-	return nodeInfo, nil
-}
-
-// ParseTrojanNodeResponse parse the response for the given nodeinfor format
 func (c *APIClient) ParseTrojanNodeResponse(nodeInfoResponse *json.RawMessage) (*api.NodeInfo, error) {
 	var speedLimit uint64 = 0
 
@@ -462,86 +206,270 @@ func (c *APIClient) ParseTrojanNodeResponse(nodeInfoResponse *json.RawMessage) (
 	return nodeInfo, nil
 }
 
-// ParseV2rayUserListResponse parse the response for the given userinfo format
-func (c *APIClient) ParseV2rayUserListResponse(userInfoResponse *json.RawMessage) (*[]api.UserInfo, error) {
-	var speedLimit uint64 = 0
+//END GetNodeInfo----------------------------------------------------------------------------------------------------------------
 
-	vmessUserList := new([]*VMessUser)
-	if err := json.Unmarshal(*userInfoResponse, vmessUserList); err != nil {
-		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(*userInfoResponse), err)
+// START GetUserList----------------------------------------------------------------------------------------------------------------
+func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
+	path := "/api/node/usenodeuser"
+	var nodeType = ""
+	switch c.NodeType {
+	case "Shadowsocks":
+		nodeType = "ss"
+	case "V2ray":
+		nodeType = "v2ray"
+	case "Trojan":
+		nodeType = "trojan"
+	default:
+		return nil, fmt.Errorf("NodeType Error: %s", c.NodeType)
+	}
+	res, err := c.client.R().
+		SetResult(&Response{}).
+		ForceContentType("application/json").
+		Get(path)
+
+	response, err := c.parseResponse(res, path, err)
+	if err != nil {
+		return nil, err
 	}
 
-	userList := make([]api.UserInfo, len(*vmessUserList))
-	for i, user := range *vmessUserList {
+	var userListResponse *[]UserResponse
+	if err := json.Unmarshal(response.Data, &userListResponse); err != nil {
+		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(userListResponse), err)
+	}
+	userList, err := c.ParseUserListResponse(userListResponse)
+	if err != nil {
+		res, _ := json.Marshal(userListResponse)
+		return nil, fmt.Errorf("parse user list failed: %s", string(res))
+	}
+	return userList, nil
+}
+
+func (c *APIClient) ParseUserListResponse(userInfoResponse *[]UserResponse) (*[]api.UserInfo, error) {
+	var deviceLimit = 0
+	var speedLimit uint64 = 0
+	userList := make([]api.UserInfo, len(*userInfoResponse))
+	for i, user := range *userInfoResponse {
+		if c.DeviceLimit > 0 {
+			deviceLimit = c.DeviceLimit
+		} else {
+			deviceLimit = user.DeviceLimit
+		}
+
 		if c.SpeedLimit > 0 {
 			speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
-		} else {
-			speedLimit = (user.SpeedLimit * 1000000) / 8
+		} else if user.SpeedLimit > 0 {
+			speedLimit = uint64((user.SpeedLimit * 1000000) / 8)
 		}
 		userList[i] = api.UserInfo{
-			UID:         user.UID,
-			Email:       "",
-			UUID:        user.VmessUID,
-			DeviceLimit: c.DeviceLimit,
+			UID:         user.ID,
+			Passwd:      user.Passwd,
+			UUID:        user.Passwd,
 			SpeedLimit:  speedLimit,
+			DeviceLimit: deviceLimit,
 		}
 	}
 
 	return &userList, nil
 }
 
-// ParseTrojanUserListResponse parse the response for the given userinfo format
-func (c *APIClient) ParseTrojanUserListResponse(userInfoResponse *json.RawMessage) (*[]api.UserInfo, error) {
-	var speedLimit uint64 = 0
+//END GetUserList----------------------------------------------------------------------------------------------------------------
 
-	trojanUserList := new([]*TrojanUser)
-	if err := json.Unmarshal(*userInfoResponse, trojanUserList); err != nil {
-		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(*userInfoResponse), err)
+// START GetNodeRule----------------------------------------------------------------------------------------------------------------
+func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
+	ruleList := c.LocalRuleList
+	path := "/api/node/noderules"
+	res, err := c.client.R().
+		SetResult(&Response{}).
+		ForceContentType("application/json").
+		Get(path)
+
+	response, err := c.parseResponse(res, path, err)
+	if err != nil {
+		return nil, err
 	}
 
-	userList := make([]api.UserInfo, len(*trojanUserList))
-	for i, user := range *trojanUserList {
-		if c.SpeedLimit > 0 {
-			speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
-		} else {
-			speedLimit = (user.SpeedLimit * 1000000) / 8
-		}
-		userList[i] = api.UserInfo{
-			UID:         user.UID,
-			Email:       "",
-			UUID:        user.Password,
-			DeviceLimit: c.DeviceLimit,
-			SpeedLimit:  speedLimit,
+	ruleListResponse := new(NodeRule)
+
+	if err := json.Unmarshal(response.Data, ruleListResponse); err != nil {
+		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(ruleListResponse), err)
+	}
+	ruleList := c.LocalRuleList
+	// Only support reject rule type
+	if ruleListResponse.Mode != "reject" {
+		return &ruleList, nil
+	} else {
+		for _, r := range ruleListResponse.Rules {
+			if r.Type == "reg" {
+				ruleList = append(ruleList, api.DetectRule{
+					ID:      r.ID,
+					Pattern: regexp.MustCompile(r.Pattern),
+				})
+			}
+
 		}
 	}
 
-	return &userList, nil
+	return &ruleList, nil
 }
 
-// ParseSSUserListResponse parse the response for the given userinfo format
-func (c *APIClient) ParseSSUserListResponse(userInfoResponse *json.RawMessage) (*[]api.UserInfo, error) {
-	var speedLimit uint64 = 0
+//END GetNodeRule----------------------------------------------------------------------------------------------------------------
 
-	ssUserList := new([]*SSUser)
-	if err := json.Unmarshal(*userInfoResponse, ssUserList); err != nil {
-		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(*userInfoResponse), err)
+// START ReportNodeStatus--------------------------------------------------------------------------------------------------------------
+func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
+	path := "/api/node/checkonline"
+	var nodeType = ""
+	switch c.NodeType {
+	case "Shadowsocks":
+		nodeType = "ss"
+	case "V2ray":
+		nodeType = "v2ray"
+	case "Trojan":
+		nodeType = "trojan"
+	default:
+		return nil, fmt.Errorf("NodeType Error: %s", c.NodeType)
 	}
 
-	userList := make([]api.UserInfo, len(*ssUserList))
-	for i, user := range *ssUserList {
-		if c.SpeedLimit > 0 {
-			speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
-		} else {
-			speedLimit = uint64(user.SpeedLimit * 1000000 / 8)
-		}
-		userList[i] = api.UserInfo{
-			UID:         user.UID,
-			Email:       "",
-			Passwd:      user.Password,
-			DeviceLimit: c.DeviceLimit,
-			SpeedLimit:  speedLimit,
+	systemload := NodeStatus{
+		Uptime: int(nodeStatus.Uptime),
+		CPU:    fmt.Sprintf("%d%%", int(nodeStatus.CPU)),
+		Mem:    fmt.Sprintf("%d%%", int(nodeStatus.Mem)),
+		Disk:   fmt.Sprintf("%d%%", int(nodeStatus.Disk)),
+	}
+
+	res, err := c.createCommonRequest().
+		SetBody(systemload).
+		SetResult(&Response{}).
+		ForceContentType("application/json").
+		Post(path)
+
+	_, err = c.parseResponse(res, path, err)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//END ReportNodeStatus----------------------------------------------------------------------------------------------------------------
+
+// START ReportNodeOnlineUsers--------------------------------------------------------------------------------------------------------------
+func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) error {
+	return nil
+}
+
+//END ReportNodeOnlineUsers----------------------------------------------------------------------------------------------------------------
+
+// START ReportNodeOnlineUsers--------------------------------------------------------------------------------------------------------------
+func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
+
+	data := make([]UserTraffic, len(*userTraffic))
+	for i, traffic := range *userTraffic {
+		data[i] = UserTraffic{
+			UserId:   traffic.UID,
+			Upload:   traffic.Upload,
+			Download: traffic.Download}
+	}
+	postData := &PostData{data: data, nodeid: strconv.Itoa(c.NodeID)}
+	path := "/api/node/usedtraffic"
+	res, err := c.client.R().
+		SetBody(postData).
+		SetResult(&Response{}).
+		ForceContentType("application/json").
+		Post(path)
+	_, err = c.parseResponse(res, path, err)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//END ReportNodeOnlineUsers----------------------------------------------------------------------------------------------------------------
+
+// START Describe--------------------------------------------------------------------------------------------------------------
+func (c *APIClient) Describe() api.ClientInfo {
+	return api.ClientInfo{APIHost: c.APIHost, NodeID: c.NodeID, Key: c.Key, NodeType: c.NodeType}
+}
+
+//END Describe----------------------------------------------------------------------------------------------------------------
+
+// START GetNodeRule--------------------------------------------------------------------------------------------------------------
+func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
+	path := "/api/node/rules"
+	var nodeType = ""
+	switch c.NodeType {
+	case "Shadowsocks":
+		nodeType = "ss"
+	case "V2ray":
+		nodeType = "v2ray"
+	case "Trojan":
+		nodeType = "trojan"
+	default:
+		return nil, fmt.Errorf("NodeType Error: %s", c.NodeType)
+	}
+
+	res, err := c.createCommonRequest().
+		SetResult(&Response{}).
+		ForceContentType("application/json").
+		Get(path)
+
+	response, err := c.parseResponse(res, path, err)
+	if err != nil {
+		return nil, err
+	}
+
+	ruleListResponse := new(NodeRule)
+
+	if err := json.Unmarshal(response.Data, ruleListResponse); err != nil {
+		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(ruleListResponse), err)
+	}
+	ruleList := c.LocalRuleList
+	// Only support reject rule type
+	if ruleListResponse.Mode != "reject" {
+		return &ruleList, nil
+	} else {
+		for _, r := range ruleListResponse.Rules {
+			if r.Type == "reg" {
+				ruleList = append(ruleList, api.DetectRule{
+					ID:      r.ID,
+					Pattern: regexp.MustCompile(r.Pattern),
+				})
+			}
+
 		}
 	}
 
-	return &userList, nil
+	return &ruleList, nil
+}
+
+//END GetNodeRule----------------------------------------------------------------------------------------------------------------
+
+// START ReportIllegal--------------------------------------------------------------------------------------------------------------
+func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
+
+	data := make([]IllegalItem, len(*detectResultList))
+	for i, r := range *detectResultList {
+		data[i] = IllegalItem{
+			ID:     r.RuleID,
+			UserId: r.UID,
+		}
+	}
+	postData := &PostData{data}
+	path := "/api/node/detectlog"
+	res, err := c.client.R().
+		SetBody(postData).
+		SetResult(&Response{}).
+		ForceContentType("application/json").
+		Post(path)
+	_, err = c.parseResponse(res, path, err)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//END ReportIllegal----------------------------------------------------------------------------------------------------------------
+
+func (c *APIClient) Debug() {
+	c.client.SetDebug(true)
 }

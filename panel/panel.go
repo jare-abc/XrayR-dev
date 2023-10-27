@@ -6,10 +6,11 @@ import (
 	"os"
 	"sync"
 
-	"github.com/jare-abc/XrayR-dev/api/newV2board"
-	"github.com/jare-abc/XrayR-dev/app/mydispatcher"
+	"github.com/XrayR-project/XrayR/api/gov2panel"
+	"github.com/XrayR-project/XrayR/api/newV2board"
+	"github.com/XrayR-project/XrayR/app/mydispatcher"
 
-	"github.com/imdario/mergo"
+	"dario.cat/mergo"
 	"github.com/r3labs/diff/v2"
 	"github.com/xtls/xray-core/app/proxyman"
 	"github.com/xtls/xray-core/app/stats"
@@ -17,15 +18,14 @@ import (
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/infra/conf"
 
-	"github.com/jare-abc/XrayR-dev/api"
-	"github.com/jare-abc/XrayR-dev/api/pmpanel"
-	"github.com/jare-abc/XrayR-dev/api/proxypanel"
-	"github.com/jare-abc/XrayR-dev/api/sspanel"
-	"github.com/jare-abc/XrayR-dev/api/v2board"
-	"github.com/jare-abc/XrayR-dev/api/v2raysocks"
-	_ "github.com/jare-abc/XrayR-dev/main/distro/all"
-	"github.com/jare-abc/XrayR-dev/service"
-	"github.com/jare-abc/XrayR-dev/service/controller"
+	"github.com/XrayR-project/XrayR/api"
+	"github.com/XrayR-project/XrayR/api/pmpanel"
+	"github.com/XrayR-project/XrayR/api/proxypanel"
+	"github.com/XrayR-project/XrayR/api/sspanel"
+	"github.com/XrayR-project/XrayR/api/v2raysocks"
+	_ "github.com/XrayR-project/XrayR/cmd/distro/all"
+	"github.com/XrayR-project/XrayR/service"
+	"github.com/XrayR-project/XrayR/service/controller"
 
 	"github.com/jare-abc/XrayR-dev/api/adminapi"
 )
@@ -179,10 +179,7 @@ func (p *Panel) Start() {
 		switch nodeConfig.PanelType {
 		case "SSpanel":
 			apiClient = sspanel.New(nodeConfig.ApiConfig)
-		// todo Deprecated after 2023.6.1
-		case "V2board":
-			apiClient = v2board.New(nodeConfig.ApiConfig)
-		case "NewV2board":
+		case "NewV2board", "V2board":
 			apiClient = newV2board.New(nodeConfig.ApiConfig)
 		case "PMpanel":
 			apiClient = pmpanel.New(nodeConfig.ApiConfig)
@@ -190,6 +187,8 @@ func (p *Panel) Start() {
 			apiClient = proxypanel.New(nodeConfig.ApiConfig)
 		case "V2RaySocks":
 			apiClient = v2raysocks.New(nodeConfig.ApiConfig)
+		case "GoV2Panel":
+			apiClient = gov2panel.New(nodeConfig.ApiConfig)
 		case "AdminApi":
 			apiClient = adminapi.New(nodeConfig.ApiConfig)
 		default:

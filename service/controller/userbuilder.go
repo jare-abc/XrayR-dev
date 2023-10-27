@@ -15,7 +15,7 @@ import (
 	"github.com/xtls/xray-core/proxy/trojan"
 	"github.com/xtls/xray-core/proxy/vless"
 
-	"github.com/jare-abc/XrayR-dev/api"
+	"github.com/XrayR-project/XrayR/api"
 )
 
 var AEADMethod = map[shadowsocks.CipherType]uint8{
@@ -25,12 +25,11 @@ var AEADMethod = map[shadowsocks.CipherType]uint8{
 	shadowsocks.CipherType_XCHACHA20_POLY1305: 0,
 }
 
-func (c *Controller) buildVmessUser(userInfo *[]api.UserInfo, serverAlterID uint16) (users []*protocol.User) {
+func (c *Controller) buildVmessUser(userInfo *[]api.UserInfo) (users []*protocol.User) {
 	users = make([]*protocol.User, len(*userInfo))
 	for i, user := range *userInfo {
 		vmessAccount := &conf.VMessAccount{
 			ID:       user.UUID,
-			AlterIds: serverAlterID,
 			Security: "auto",
 		}
 		users[i] = &protocol.User{
@@ -63,7 +62,6 @@ func (c *Controller) buildTrojanUser(userInfo *[]api.UserInfo) (users []*protoco
 	for i, user := range *userInfo {
 		trojanAccount := &trojan.Account{
 			Password: user.UUID,
-			Flow:     "",
 		}
 		users[i] = &protocol.User{
 			Level:   0,
