@@ -18,33 +18,20 @@ type serverConfig struct {
 			Cipher      string           `json:"cipher"`
 			Obfs        string           `json:"obfs"`
 			Path        string           `json:"path"`
-			ServerKey   string           `json:"method"`
+			ServerKey   string           `json:"serverkey"`
 			Network     string           `json:"network"`
 			Headers     *json.RawMessage `json:"headers"`
 			ServiceName string           `json:"serviceName"`
 			Header      *json.RawMessage `json:"header"`
 			Tls         int              `json:"tls"`
 			Host        string           `json:"host"`
-			ServerName  string           `json:"server_name"`
+			Method      string           `json:"method"`
 		} `json:"setting"`
 		Routes []route `json:"routes"`
 	} `json:"result"`
 	RExtras string `json:"extras"`
 	RTime   string `json:"time"`
 }
-
-/* type serverConfig struct {
-	shadowsocks
-	v2ray
-	trojan
-
-	ServerPort int `json:"port"`
-	BaseConfig struct {
-		PushInterval int `json:"push_interval"`
-		PullInterval int `json:"pull_interval"`
-	} `json:"base_config"`
-	Routes []route `json:"routes"`
-} */
 
 type route struct {
 	Id          int      `json:"id"`
@@ -54,7 +41,8 @@ type route struct {
 }
 
 type user struct {
-	Id         int    `json:"id"`
-	Uuid       string `json:"uuid"`
-	SpeedLimit int    `json:"speed_limit"`
+	Id          int    `json:"id"`
+	PassWord    string `json:"password"`
+	SpeedLimit  uint64 `json:"nodespeedlimit"`
+	DeviceLimit int    `json:"nodeconnector"`
 }
