@@ -1,4 +1,4 @@
-module github.com/XrayR-project/XrayR
+module github.com/jare-abc/XrayR-dev
 
 go 1.21
 
@@ -6,6 +6,7 @@ toolchain go1.21.1
 
 require (
 	dario.cat/mergo v1.0.0
+	github.com/XrayR-project/XrayR v0.9.2
 	github.com/bitly/go-simplejson v0.5.1
 	github.com/deckarep/golang-set v1.8.0
 	github.com/eko/gocache/lib/v4 v4.1.5
@@ -15,7 +16,6 @@ require (
 	github.com/go-acme/lego/v4 v4.14.2
 	github.com/go-resty/resty/v2 v2.10.0
 	github.com/gogf/gf/v2 v2.5.6
-	github.com/jare-abc/XrayR-dev v0.0.0-20230712145314-a58a8b3d0969
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/r3labs/diff/v2 v2.15.1
 	github.com/redis/go-redis/v9 v9.2.1

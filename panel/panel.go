@@ -6,10 +6,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/XrayR-project/XrayR/api/adminapi"
-	"github.com/XrayR-project/XrayR/api/gov2panel"
-	"github.com/XrayR-project/XrayR/api/newV2board"
-	"github.com/XrayR-project/XrayR/app/mydispatcher"
+	"github.com/jare-abc/XrayR-dev/api/gov2panel"
+	"github.com/jare-abc/XrayR-dev/api/newV2board"
+	"github.com/jare-abc/XrayR-dev/app/mydispatcher"
+	"github.com/jare-abc/XrayR-dev/api/adminapi"
 
 	"dario.cat/mergo"
 	"github.com/r3labs/diff/v2"
@@ -19,14 +19,14 @@ import (
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/infra/conf"
 
-	"github.com/XrayR-project/XrayR/api"
-	"github.com/XrayR-project/XrayR/api/pmpanel"
-	"github.com/XrayR-project/XrayR/api/proxypanel"
-	"github.com/XrayR-project/XrayR/api/sspanel"
-	"github.com/XrayR-project/XrayR/api/v2raysocks"
-	_ "github.com/XrayR-project/XrayR/cmd/distro/all"
-	"github.com/XrayR-project/XrayR/service"
-	"github.com/XrayR-project/XrayR/service/controller"
+	"github.com/jare-abc/XrayR-dev/api"
+	"github.com/jare-abc/XrayR-dev/api/pmpanel"
+	"github.com/jare-abc/XrayR-dev/api/proxypanel"
+	"github.com/jare-abc/XrayR-dev/api/sspanel"
+	"github.com/jare-abc/XrayR-dev/api/v2raysocks"
+	_ "github.com/jare-abc/XrayR-dev/cmd/distro/all"
+	"github.com/jare-abc/XrayR-dev/service"
+	"github.com/jare-abc/XrayR-dev/service/controller"
 )
 
 // Panel Structure
