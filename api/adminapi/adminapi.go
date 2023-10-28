@@ -37,7 +37,7 @@ type APIClient struct {
 	eTags         map[string]string
 }
 
-// New create an api instance
+// API请求方法
 func New(apiConfig *api.Config) *APIClient {
 	client := resty.New()
 	client.SetRetryCount(3)
@@ -53,14 +53,16 @@ func New(apiConfig *api.Config) *APIClient {
 			log.Print(v.Err)
 		}
 	})
-	client.SetBaseURL(apiConfig.APIHost)
-	// Create Key for each requests
-	client.SetQueryParams(map[string]string{
+
+	client.SetBaseURL(apiConfig.APIHost) //设置请求域名
+
+	//Headers内设置通讯参数
+	client.SetHeaders(map[string]string{
+		"api_token": apiConfig.Key,
 		"node_id":   strconv.Itoa(apiConfig.NodeID),
-		"node_type": strings.ToLower(apiConfig.NodeType),
-		"token":     apiConfig.Key,
 	})
-	// Read local rule list
+
+	// 本地参数读取
 	localRuleList := readLocalRuleList(apiConfig.RuleListPath)
 	apiClient := &APIClient{
 		client:        client,
@@ -142,39 +144,41 @@ func (c *APIClient) parseResponse(res *resty.Response, path string, err error) (
 	return rtn, nil
 }
 
-// GetNodeInfo will pull NodeInfo Config from panel
+// GetNodeInfo 将从面板中提取 NodeInfo 配置
 func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 	server := new(serverConfig)
-	path := "/api/v1/server/UniProxy/config"
+	path := "/api/node/nodesetting"
 
 	res, err := c.client.R().
 		SetHeader("If-None-Match", c.eTags["node"]).
 		ForceContentType("application/json").
 		Get(path)
 
-	// Etag identifier for a specific version of a resource. StatusCode = 304 means no changed
+	// 资源的特定版本的Etag标识符。StatusCode=304表示未更改
 	if res.StatusCode() == 304 {
 		return nil, errors.New(api.NodeNotModified)
 	}
+
 	// update etag
-	if res.Header().Get("Etag") != "" && res.Header().Get("Etag") != c.eTags["node"] {
-		c.eTags["node"] = res.Header().Get("Etag")
-	}
+	//if res.Header().Get("Etag") != "" && res.Header().Get("Etag") != c.eTags["node"] {
+	//	c.eTags["node"] = res.Header().Get("Etag")
+	//}
 
 	nodeInfoResp, err := c.parseResponse(res, path, err)
 	if err != nil {
 		return nil, err
 	}
+
 	b, _ := nodeInfoResp.Encode()
 	json.Unmarshal(b, server)
 
-	if server.ServerPort == 0 {
+	if server.ResultData.ServerPort <= 0 {
 		return nil, errors.New("server port must > 0")
 	}
 
 	c.resp.Store(server)
 
-	switch c.NodeType {
+	switch server.ResultData.NodeType {
 	case "V2ray":
 		nodeInfo, err = c.parseV2rayNodeResponse(server)
 	case "Trojan":
@@ -274,7 +278,7 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 
 // GetNodeRule implements the API interface
 func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
-	routes := c.resp.Load().(*serverConfig).Routes
+	routes := c.resp.Load().(*serverConfig).ResultData.Routes
 
 	ruleList := c.LocalRuleList
 
@@ -311,11 +315,11 @@ func (c *APIClient) parseTrojanNodeResponse(s *serverConfig) (*api.NodeInfo, err
 	nodeInfo := &api.NodeInfo{
 		NodeType:          c.NodeType,
 		NodeID:            c.NodeID,
-		Port:              uint32(s.ServerPort),
+		Port:              uint32(s.ResultData.ServerPort),
 		TransportProtocol: "tcp",
 		EnableTLS:         true,
-		Host:              s.Host,
-		ServiceName:       s.ServerName,
+		Host:              s.ResultData.NodeSetting.Host,
+		ServiceName:       s.ResultData.NodeSetting.ServerName,
 		NameServerConfig:  s.parseDNSConfig(),
 	}
 	return nodeInfo, nil
@@ -325,9 +329,9 @@ func (c *APIClient) parseTrojanNodeResponse(s *serverConfig) (*api.NodeInfo, err
 func (c *APIClient) parseSSNodeResponse(s *serverConfig) (*api.NodeInfo, error) {
 	var header json.RawMessage
 
-	if s.Obfs == "http" {
+	if s.ResultData.NodeSetting.Obfs == "http" {
 		path := "/"
-		if p := s.ObfsSettings.Path; p != "" {
+		if p := s.ResultData.NodeSetting.Path; p != "" {
 			if strings.HasPrefix(p, "/") {
 				path = p
 			} else {
@@ -343,10 +347,10 @@ func (c *APIClient) parseSSNodeResponse(s *serverConfig) (*api.NodeInfo, error) 
 	return &api.NodeInfo{
 		NodeType:          c.NodeType,
 		NodeID:            c.NodeID,
-		Port:              uint32(s.ServerPort),
+		Port:              uint32(s.ResultData.ServerPort),
 		TransportProtocol: "tcp",
-		CypherMethod:      s.Cipher,
-		ServerKey:         s.ServerKey, // shadowsocks2022 share key
+		CypherMethod:      s.ResultData.NodeSetting.Cipher,
+		ServerKey:         s.ResultData.NodeSetting.ServerKey, // shadowsocks2022 share key
 		NameServerConfig:  s.parseDNSConfig(),
 		Header:            header,
 	}, nil
@@ -360,10 +364,10 @@ func (c *APIClient) parseV2rayNodeResponse(s *serverConfig) (*api.NodeInfo, erro
 		enableTLS bool
 	)
 
-	switch s.Network {
+	switch s.ResultData.NodeSetting.Network {
 	case "ws":
-		if s.NetworkSettings.Headers != nil {
-			if httpHeader, err := s.NetworkSettings.Headers.MarshalJSON(); err != nil {
+		if s.ResultData.NodeSetting.Headers != nil {
+			if httpHeader, err := s.ResultData.NodeSetting.Headers.MarshalJSON(); err != nil {
 				return nil, err
 			} else {
 				b, _ := simplejson.NewJson(httpHeader)
@@ -371,8 +375,8 @@ func (c *APIClient) parseV2rayNodeResponse(s *serverConfig) (*api.NodeInfo, erro
 			}
 		}
 	case "tcp":
-		if s.NetworkSettings.Header != nil {
-			if httpHeader, err := s.NetworkSettings.Header.MarshalJSON(); err != nil {
+		if s.ResultData.NodeSetting.Header != nil {
+			if httpHeader, err := s.ResultData.NodeSetting.Header.MarshalJSON(); err != nil {
 				return nil, err
 			} else {
 				header = httpHeader
@@ -380,7 +384,7 @@ func (c *APIClient) parseV2rayNodeResponse(s *serverConfig) (*api.NodeInfo, erro
 		}
 	}
 
-	if s.Tls == 1 {
+	if s.ResultData.NodeSetting.Tls == 1 {
 		enableTLS = true
 	}
 
@@ -388,26 +392,26 @@ func (c *APIClient) parseV2rayNodeResponse(s *serverConfig) (*api.NodeInfo, erro
 	return &api.NodeInfo{
 		NodeType:          c.NodeType,
 		NodeID:            c.NodeID,
-		Port:              uint32(s.ServerPort),
+		Port:              uint32(s.ResultData.ServerPort),
 		AlterID:           0,
-		TransportProtocol: s.Network,
+		TransportProtocol: s.ResultData.NodeSetting.Network,
 		EnableTLS:         enableTLS,
-		Path:              s.NetworkSettings.Path,
+		Path:              s.ResultData.NodeSetting.Path,
 		Host:              host,
 		EnableVless:       c.EnableVless,
 		VlessFlow:         c.VlessFlow,
-		ServiceName:       s.NetworkSettings.ServiceName,
+		ServiceName:       s.ResultData.NodeSetting.ServiceName,
 		Header:            header,
 		NameServerConfig:  s.parseDNSConfig(),
 	}, nil
 }
 
 func (s *serverConfig) parseDNSConfig() (nameServerList []*conf.NameServerConfig) {
-	for i := range s.Routes {
-		if s.Routes[i].Action == "dns" {
+	for i := range s.ResultData.Routes {
+		if s.ResultData.Routes[i].Action == "dns" {
 			nameServerList = append(nameServerList, &conf.NameServerConfig{
-				Address: &conf.Address{Address: net.ParseAddress(s.Routes[i].ActionValue)},
-				Domains: s.Routes[i].Match,
+				Address: &conf.Address{Address: net.ParseAddress(s.ResultData.Routes[i].ActionValue)},
+				Domains: s.ResultData.Routes[i].Match,
 			})
 		}
 	}
