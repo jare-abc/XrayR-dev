@@ -37,7 +37,7 @@ type APIClient struct {
 	eTags         map[string]string
 }
 
-// API请求方法
+// API请求方法 --ok
 func New(apiConfig *api.Config) *APIClient {
 	client := resty.New()
 	client.SetRetryCount(3)
@@ -144,7 +144,7 @@ func (c *APIClient) parseResponse(res *resty.Response, path string, err error) (
 	return rtn, nil
 }
 
-// GetNodeInfo 将从面板中提取 NodeInfo 配置
+// GetNodeInfo 将从面板中提取 NodeInfo 配置  --ok
 func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 	server := new(serverConfig)
 	path := "/api/node/nodesetting"
@@ -194,7 +194,7 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 	return nodeInfo, nil
 }
 
-// GetUserList will pull user form panel
+// GetUserList 拉取可用用户  --ok
 func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 	var users []*user
 	path := "/api/node/usenodeuser"
@@ -309,13 +309,40 @@ func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
 	return &ruleList, nil
 }
 
-// ReportNodeStatus implements the API interface
+// ReportNodeStatus 上报节点服务器状态
 func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
 	return nil
 }
 
-// ReportNodeOnlineUsers implements the API interface
+// ReportNodeOnlineUsers 提交在线用户
 func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) error {
+	/* var nodeType = ""
+	switch c.NodeType {
+	case "Shadowsocks":
+		nodeType = "ss"
+	case "V2ray":
+		nodeType = "v2ray"
+	case "Trojan":
+		nodeType = "trojan"
+	default:
+		return fmt.Errorf("NodeType Error: %s", c.NodeType)
+	} */
+	data := make([]OnlineUser, len(*onlineUserList))
+	for i, user := range *onlineUserList {
+		data[i] = OnlineUser{UID: user.UID, IP: user.IP}
+	}
+	//postData := &PostData{Onlines: data}
+	path := "/api/node/nodeonline"
+
+	res, err := c.client.R().
+		SetBody(data).
+		ForceContentType("application/json").
+		Post(path)
+	_, err = c.parseResponse(res, path, err)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

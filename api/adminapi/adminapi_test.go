@@ -1,6 +1,7 @@
 package adminapi_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/jare-abc/XrayR-dev/api"
@@ -12,7 +13,7 @@ func CreateClient() api.API {
 		APIHost:  "http://localhost:5005",
 		Key:      "qwertyuiopasdfghjkl",
 		NodeID:   1,
-		NodeType: "V2ray",
+		NodeType: "Shadowsocks",
 	}
 	client := adminapi.New(apiConfig)
 	return client
@@ -55,6 +56,33 @@ func TestGetTrojanNodeInfo(t *testing.T) {
 		t.Error(err)
 	}
 	t.Log(nodeInfo)
+}
+
+func TestReportReportNodeOnlineUsers(t *testing.T) {
+	apiConfig := &api.Config{
+		APIHost:  "http://127.0.0.1:5005",
+		Key:      "qwertyuiopasdfghjkl",
+		NodeID:   1,
+		NodeType: "Shadowsocks",
+	}
+	client := adminapi.New(apiConfig)
+	userList, err := client.GetUserList()
+	if err != nil {
+		t.Error(err)
+	}
+
+	onlineUserList := make([]api.OnlineUser, len(*userList))
+	for i, userInfo := range *userList {
+		onlineUserList[i] = api.OnlineUser{
+			UID: userInfo.UID,
+			IP:  fmt.Sprintf("1.1.1.%d", i),
+		}
+	}
+	// client.Debug()
+	err = client.ReportNodeOnlineUsers(&onlineUserList)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestGetUserList(t *testing.T) {

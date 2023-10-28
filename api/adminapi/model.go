@@ -46,3 +46,12 @@ type user struct {
 	SpeedLimit  uint64 `json:"nodespeedlimit"`
 	DeviceLimit int    `json:"nodeconnector"`
 }
+
+type OnlineUser struct {
+	UID int    `json:"UserNo"`
+	IP  string `json:"IP"`
+}
+type PostData struct {
+	Users   interface{} `json:"users"`
+	Onlines interface{} `json:"onlines"`
+}
