@@ -130,3 +130,14 @@ func TestGetNodeRule(t *testing.T) {
 
 	t.Log(ruleList)
 }
+
+func TestReportNodeStatus(t *testing.T) {
+	client := CreateClient()
+	nodeStatus := &api.NodeStatus{
+		CPU: 1, Mem: 1, Disk: 1, Uptime: 256,
+	}
+	err := client.ReportNodeStatus(nodeStatus)
+	if err != nil {
+		t.Error(err)
+	}
+}

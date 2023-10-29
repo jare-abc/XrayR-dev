@@ -315,6 +315,25 @@ func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
 
 // ReportNodeStatus 上报节点服务器状态
 func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
+	path := "/api/node/checkonline"
+
+	//path := fmt.Sprintf("/api/node/checkonline/%d/info", c.NodeID)
+	systemload := NodeStatus{
+		Uptime: int(nodeStatus.Uptime),
+		CPU:    fmt.Sprintf("%d%%", int(nodeStatus.CPU)),
+		Memory: fmt.Sprintf("%d%%", int(nodeStatus.Mem)),
+		Disk:   fmt.Sprintf("%d%%", int(nodeStatus.Disk)),
+	}
+
+	res, err := c.client.R().
+		SetBody(systemload).ForceContentType("application/json").
+		Post(path)
+
+	_, err = c.parseResponse(res, path, err)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -61,3 +61,11 @@ type UserTraffic struct {
 	Upload   int64 `json:"upload"`
 	Download int64 `json:"download"`
 }
+
+type NodeStatus struct {
+	CPU    string `json:"cpu"`
+	Memory string `json:"memory"`
+	Net    string `json:"net"`
+	Disk   string `json:"disk"`
+	Uptime int    `json:"uptime"`
+}
