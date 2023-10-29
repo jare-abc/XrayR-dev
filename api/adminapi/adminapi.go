@@ -274,15 +274,19 @@ func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 
 // ReportUserTraffic reports the user traffic
 func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
-	path := "/api/v1/server/UniProxy/push"
-
-	// json structure: {uid1: [u, d], uid2: [u, d], uid1: [u, d], uid3: [u, d]}
-	data := make(map[int][]int64, len(*userTraffic))
-	for _, traffic := range *userTraffic {
-		data[traffic.UID] = []int64{traffic.Upload, traffic.Download}
+	path := "/api/node/usedtraffic"
+	data := make([]UserTraffic, len(*userTraffic))
+	for i, traffic := range *userTraffic {
+		data[i] = UserTraffic{
+			UID:      traffic.UID,
+			Upload:   traffic.Upload,
+			Download: traffic.Download}
 	}
 
-	res, err := c.client.R().SetBody(data).ForceContentType("application/json").Post(path)
+	res, err := c.client.R().
+		SetBody(data).
+		ForceContentType("application/json").
+		Post(path)
 	_, err = c.parseResponse(res, path, err)
 	if err != nil {
 		return err
@@ -314,24 +318,13 @@ func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
 	return nil
 }
 
-// ReportNodeOnlineUsers 提交在线用户
+// ReportNodeOnlineUsers 提交节点在线用户
 func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) error {
-	/* var nodeType = ""
-	switch c.NodeType {
-	case "Shadowsocks":
-		nodeType = "ss"
-	case "V2ray":
-		nodeType = "v2ray"
-	case "Trojan":
-		nodeType = "trojan"
-	default:
-		return fmt.Errorf("NodeType Error: %s", c.NodeType)
-	} */
 	data := make([]OnlineUser, len(*onlineUserList))
 	for i, user := range *onlineUserList {
 		data[i] = OnlineUser{UID: user.UID, IP: user.IP}
 	}
-	//postData := &PostData{Onlines: data}
+
 	path := "/api/node/nodeonline"
 
 	res, err := c.client.R().

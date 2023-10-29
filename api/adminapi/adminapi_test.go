@@ -103,6 +103,7 @@ func TestReportReportUserTraffic(t *testing.T) {
 		t.Error(err)
 	}
 	generalUserTraffic := make([]api.UserTraffic, len(*userList))
+
 	for i, userInfo := range *userList {
 		generalUserTraffic[i] = api.UserTraffic{
 			UID:      userInfo.UID,
@@ -115,6 +116,8 @@ func TestReportReportUserTraffic(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	t.Log(generalUserTraffic)
 }
 
 func TestGetNodeRule(t *testing.T) {

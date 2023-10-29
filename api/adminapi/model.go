@@ -55,3 +55,9 @@ type PostData struct {
 	Users   interface{} `json:"users"`
 	Onlines interface{} `json:"onlines"`
 }
+
+type UserTraffic struct {
+	UID      int   `json:"userno"`
+	Upload   int64 `json:"upload"`
+	Download int64 `json:"download"`
+}
