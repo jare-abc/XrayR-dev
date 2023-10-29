@@ -272,7 +272,7 @@ func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 	return &userList, nil
 }
 
-// ReportUserTraffic reports the user traffic
+// ReportUserTraffic 上报使用情况
 func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 	path := "/api/node/usedtraffic"
 	data := make([]UserTraffic, len(*userTraffic))
@@ -295,7 +295,7 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 	return nil
 }
 
-// GetNodeRule implements the API interface
+// GetNodeRule 获取审计规则
 func (c *APIClient) GetNodeRule() (*[]api.DetectRule, error) {
 	routes := c.resp.Load().(*serverConfig).ResultData.Routes
 
@@ -339,7 +339,7 @@ func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) erro
 	return nil
 }
 
-// ReportIllegal implements the API interface
+// ReportIllegal 审计规则上报
 func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
 	return nil
 }
