@@ -6,7 +6,6 @@ toolchain go1.21.1
 
 require (
 	dario.cat/mergo v1.0.0
-	github.com/XrayR-project/XrayR v0.9.2
 	github.com/bitly/go-simplejson v0.5.1
 	github.com/deckarep/golang-set v1.8.0
 	github.com/eko/gocache/lib/v4 v4.1.5

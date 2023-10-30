@@ -6,10 +6,10 @@ import (
 	"os"
 	"sync"
 
+	"github.com/jare-abc/XrayR-dev/api/adminapi"
 	"github.com/jare-abc/XrayR-dev/api/gov2panel"
 	"github.com/jare-abc/XrayR-dev/api/newV2board"
 	"github.com/jare-abc/XrayR-dev/app/mydispatcher"
-	"github.com/jare-abc/XrayR-dev/api/adminapi"
 
 	"dario.cat/mergo"
 	"github.com/r3labs/diff/v2"
