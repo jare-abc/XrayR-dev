@@ -12,10 +12,9 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/jare-abc/XrayR-dev/panel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"github.com/jare-abc/XrayR-dev/panel"
 )
 
 var (
